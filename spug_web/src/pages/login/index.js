@@ -29,9 +29,7 @@ export default function () {
     appStore.records = [];
     requestStore.records = [];
     requestStore.deploys = [];
-    hostStore.records = null;
-    hostStore.groups = {};
-    hostStore.treeData = [];
+    hostStore.rawRecords = [];
     execStore.hosts = [];
   }, [])
 

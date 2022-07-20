@@ -2,10 +2,12 @@
 # Copyright: (c) <spug.dev@gmail.com>
 # Released under the AGPL-3.0 License.
 from django_redis import get_redis_connection
+from libs.utils import human_seconds_time
 from libs.ssh import SSH
 import threading
 import socket
 import json
+import time
 
 
 def exec_worker_handler(job):
@@ -14,12 +16,13 @@ def exec_worker_handler(job):
 
 
 class Job:
-    def __init__(self, key, name, hostname, port, username, pkey, command, interpreter, params=None, token=None):
-        self.ssh = SSH(hostname, port, username, pkey)
+    def __init__(self, key, name, hostname, port, username, pkey, command, interpreter, params=None, token=None,
+                 term=None):
+        self.ssh = SSH(hostname, port, username, pkey, term=term)
         self.key = key
         self.command = self._handle_command(command, interpreter)
         self.token = token
-        self.rds_cli = None
+        self.rds = get_redis_connection()
         self.env = dict(
             SPUG_HOST_ID=str(self.key),
             SPUG_HOST_NAME=name,
@@ -31,12 +34,8 @@ class Job:
         if isinstance(params, dict):
             self.env.update({f'_SPUG_{k}': str(v) for k, v in params.items()})
 
-    def _send(self, message, with_expire=False):
-        if self.rds_cli is None:
-            self.rds_cli = get_redis_connection()
-        self.rds_cli.lpush(self.token, json.dumps(message))
-        if with_expire:
-            self.rds_cli.expire(self.token, 300)
+    def _send(self, message):
+        self.rds.publish(self.token, json.dumps(message))
 
     def _handle_command(self, command, interpreter):
         if interpreter == 'python':
@@ -45,23 +44,24 @@ class Job:
         return command
 
     def send(self, data):
-        message = {'key': self.key, 'data': data}
-        self._send(message)
+        self._send({'key': self.key, 'data': data})
 
     def send_status(self, code):
-        message = {'key': self.key, 'status': code}
-        self._send(message, True)
+        self._send({'key': self.key, 'status': code})
 
     def run(self):
         if not self.token:
             with self.ssh:
                 return self.ssh.exec_command(self.command, self.env)
+        flag = time.time()
         self.send('\r\n\x1b[36m### Executing ...\x1b[0m\r\n')
         code = -1
         try:
             with self.ssh:
                 for code, out in self.ssh.exec_command_with_stream(self.command, self.env):
                     self.send(out)
+            human_time = human_seconds_time(time.time() - flag)
+            self.send(f'\r\n\x1b[36m** 执行结束，总耗时：{human_time} **\x1b[0m')
         except socket.timeout:
             code = 130
             self.send('\r\n\x1b[31m### Time out\x1b[0m')

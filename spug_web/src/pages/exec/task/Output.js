@@ -16,8 +16,9 @@ import {
 import { FitAddon } from 'xterm-addon-fit';
 import { Terminal } from 'xterm';
 import style from './index.module.less';
-import { X_TOKEN } from 'libs';
+import { http, X_TOKEN } from 'libs';
 import store from './store';
+import gStore from 'gStore';
 
 let gCurrent;
 
@@ -31,7 +32,8 @@ function OutView(props) {
     store.tag = ''
     gCurrent = current
     term.setOption('disableStdin', true)
-    term.setOption('fontFamily', 'Source Code Pro, Courier New, Courier, Monaco, monospace, PingFang SC, Microsoft YaHei')
+    term.setOption('fontSize', gStore.terminal.fontSize)
+    term.setOption('fontFamily', gStore.terminal.fontFamily)
     term.setOption('theme', {background: '#2b2b2b', foreground: '#A9B7C6', cursor: '#2b2b2b'})
     term.attachCustomKeyEventHandler((arg) => {
       if (arg.ctrlKey && arg.code === 'KeyC' && arg.type === 'keydown') {
@@ -53,7 +55,7 @@ function OutView(props) {
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/exec/${store.token}/?x-token=${X_TOKEN}`);
+    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/subscribe/${store.token}/?x-token=${X_TOKEN}`);
     socket.onopen = () => {
       const message = '\r\x1b[K\x1b[36m### Waiting for scheduling ...\x1b[0m'
       for (let key of Object.keys(store.outputs)) {
@@ -62,6 +64,9 @@ function OutView(props) {
       term.write(message)
       socket.send('ok');
       fitPlugin.fit()
+      const formData = fitPlugin.proposeDimensions()
+      formData.token = store.token
+      http.patch('/api/exec/do/', formData)
     }
     socket.onmessage = e => {
       if (e.data === 'pong') {

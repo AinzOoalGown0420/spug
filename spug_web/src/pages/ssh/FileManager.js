@@ -4,14 +4,15 @@
  * Released under the AGPL-3.0 License.
  */
 import React from 'react';
-import { Breadcrumb, Table, Switch, Progress, Modal, message } from 'antd';
+import { Breadcrumb, Table, Switch, Progress, Modal, Input, message } from 'antd';
 import {
   DeleteOutlined,
   DownloadOutlined,
   FileOutlined,
   FolderOutlined,
   HomeOutlined,
-  UploadOutlined
+  UploadOutlined,
+  EditOutlined
 } from '@ant-design/icons';
 import { AuthButton, Action } from 'components';
 import { http, uniqueId, X_TOKEN } from 'libs';
@@ -23,10 +24,12 @@ class FileManager extends React.Component {
   constructor(props) {
     super(props);
     this.input = null;
+    this.input2 = null
     this.state = {
       fetching: false,
       showDot: false,
       uploading: false,
+      inputPath: null,
       uploadStatus: 'active',
       pwd: [],
       objects: [],
@@ -97,10 +100,11 @@ class FileManager extends React.Component {
     this.setState({fetching: true});
     pwd = pwd || this.state.pwd;
     const path = '/' + pwd.join('/');
-    http.get('/api/file/', {params: {id: this.props.id, path}})
+    return http.get('/api/file/', {params: {id: this.props.id, path}})
       .then(res => {
         const objects = lds.orderBy(res, [this._kindSort, 'name'], ['desc', 'asc']);
         this.setState({objects, pwd})
+        this.state.inputPath !== null && this.setState({inputPath: path})
       })
       .finally(() => this.setState({fetching: false}))
   };
@@ -109,6 +113,7 @@ class FileManager extends React.Component {
     let pwd = this.state.pwd.map(x => x);
     if (action === '1') {
       pwd.push(name)
+      this.setState({inputPath: null})
     } else if (action === '2') {
       const index = pwd.indexOf(name);
       pwd = pwd.splice(0, index + 1)
@@ -117,6 +122,22 @@ class FileManager extends React.Component {
     }
     this.fetchFiles(pwd)
   };
+
+  handleInputEnter = () => {
+    if (this.state.inputPath === null) {
+      if (this.state.pwd.length > 0) {
+        this.setState({inputPath: `/${this.state.pwd.join('/')}/`})
+      } else {
+        this.setState({inputPath: '/'})
+      }
+      setTimeout(() => this.input2.focus(), 100)
+    } else {
+      let pwdStr = this.state.inputPath.replace(/^\/+/, '')
+      pwdStr = pwdStr.replace(/\/+$/, '')
+      this.fetchFiles(pwdStr.split('/'))
+        .then(() => this.setState({inputPath: null}))
+    }
+  }
 
   handleUpload = () => {
     this.input.click();
@@ -147,7 +168,7 @@ class FileManager extends React.Component {
 
   _updatePercent = token => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    this.socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/exec/${token}/?x-token=${X_TOKEN}`);
+    this.socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/subscribe/${token}/?x-token=${X_TOKEN}`);
     this.socket.onopen = () => this.socket.send('ok');
     this.socket.onmessage = e => {
       if (e.data === 'pong') {
@@ -198,16 +219,28 @@ class FileManager extends React.Component {
       <React.Fragment>
         <input style={{display: 'none'}} type="file" ref={ref => this.input = ref}/>
         <div className={styles.drawerHeader}>
-          <Breadcrumb>
-            <Breadcrumb.Item href="#" onClick={() => this.handleChdir('', '0')}>
-              <HomeOutlined/>
-            </Breadcrumb.Item>
-            {this.state.pwd.map(item => (
-              <Breadcrumb.Item key={item} href="#" onClick={() => this.handleChdir(item, '2')}>
-                <span>{item}</span>
+          {this.state.inputPath !== null ? (
+            <Input ref={ref => this.input2 = ref} size="small" className={styles.input}
+                   suffix={<div style={{color: '#999', fontSize: 12}}>回车确认</div>}
+                   value={this.state.inputPath} onChange={e => this.setState({inputPath: e.target.value})}
+                   onBlur={this.handleInputEnter}
+                   onPressEnter={this.handleInputEnter}/>
+          ) : (
+            <Breadcrumb className={styles.bread}>
+              <Breadcrumb.Item href="#" onClick={() => this.handleChdir('', '0')}>
+                <HomeOutlined style={{fontSize: 16}}/>
               </Breadcrumb.Item>
-            ))}
-          </Breadcrumb>
+              {this.state.pwd.map(item => (
+                <Breadcrumb.Item key={item} href="#" onClick={() => this.handleChdir(item, '2')}>
+                  <span>{item}</span>
+                </Breadcrumb.Item>
+              ))}
+              <Breadcrumb.Item onClick={this.handleInputEnter}>
+                <EditOutlined className={styles.edit}/>
+              </Breadcrumb.Item>
+            </Breadcrumb>
+          )}
+
           <div className={styles.action}>
             <span>显示隐藏文件：</span>
             <Switch

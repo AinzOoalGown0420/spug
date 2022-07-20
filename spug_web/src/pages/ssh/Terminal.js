@@ -9,7 +9,7 @@ import { FitAddon } from 'xterm-addon-fit';
 import { X_TOKEN } from 'libs';
 import 'xterm/css/xterm.css';
 import styles from './index.module.less';
-
+import gStore from 'gStore';
 
 function WebSSH(props) {
   const container = useRef();
@@ -18,8 +18,9 @@ function WebSSH(props) {
 
   useEffect(() => {
     term.loadAddon(fitPlugin);
-    term.setOption('fontFamily', 'Source Code Pro, Courier New, Courier, Monaco, monospace, PingFang SC, Microsoft YaHei')
-    term.setOption('theme', {background: '#2b2b2b', foreground: '#A9B7C6'})
+    term.setOption('fontSize', gStore.terminal.fontSize)
+    term.setOption('fontFamily', gStore.terminal.fontFamily)
+    term.setOption('theme', gStore.terminal.styles)
     term.attachCustomKeyEventHandler((arg) => {
       if (arg.code === 'PageUp' && arg.type === 'keydown') {
         term.scrollPages(-1)
@@ -38,10 +39,10 @@ function WebSSH(props) {
     socket.onopen = () => {
       term.write('ok')
       term.focus();
-      fitPlugin.fit();
+      fitTerminal();
     };
     socket.onclose = e => {
-      setTimeout(() => term.write('\r\nConnection is closed.\r\n'), 200)
+      setTimeout(() => term.write('\r\n\r\n\x1b[31mConnection is closed.\x1b[0m\r\n'), 200)
     };
     term.onData(data => socket.send(JSON.stringify({data})));
     term.onResize(({cols, rows}) => {
@@ -57,6 +58,13 @@ function WebSSH(props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    term.setOption('fontSize', gStore.terminal.fontSize)
+    term.setOption('fontFamily', gStore.terminal.fontFamily)
+    term.setOption('theme', gStore.terminal.styles)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gStore.terminal])
 
   useEffect(() => {
     if (props.vId === props.activeId) {
@@ -79,9 +87,7 @@ function WebSSH(props) {
   }
 
   return (
-    <div className={styles.termContainer}>
-      <div className={styles.terminal} ref={container}/>
-    </div>
+    <div className={styles.terminal} ref={container}/>
   )
 }
 

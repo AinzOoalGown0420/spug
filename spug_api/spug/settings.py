@@ -104,6 +104,7 @@ TEMPLATES = [
     },
 ]
 
+TOKEN_TTL = 8 * 3600
 SCHEDULE_KEY = 'spug:schedule'
 SCHEDULE_WORKER_KEY = 'spug:schedule:worker'
 MONITOR_KEY = 'spug:monitor'
@@ -113,6 +114,7 @@ REQUEST_KEY = 'spug:request'
 BUILD_KEY = 'spug:build'
 REPOS_DIR = os.path.join(os.path.dirname(os.path.dirname(BASE_DIR)), 'repos')
 BUILD_DIR = os.path.join(REPOS_DIR, 'build')
+TRANSFER_DIR = os.path.join(BASE_DIR, 'storage', 'transfer')
 
 # Internationalization
 # https://docs.djangoproject.com/en/2.2/topics/i18n/
@@ -133,7 +135,7 @@ AUTHENTICATION_EXCLUDES = (
     re.compile('/apis/.*'),
 )
 
-SPUG_VERSION = 'v3.1.5'
+SPUG_VERSION = 'v3.2.2'
 
 # override default config
 try:

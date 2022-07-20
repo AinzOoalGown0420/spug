@@ -7,7 +7,6 @@ import React, { useState, useEffect } from 'react';
 import { observer } from 'mobx-react';
 import { UploadOutlined } from '@ant-design/icons';
 import { Modal, Form, Input, Upload, DatePicker, message, Button } from 'antd';
-import hostStore from 'pages/host/store';
 import HostSelector from './HostSelector';
 import { http, clsNames, X_TOKEN } from 'libs';
 import styles from './index.module.less';
@@ -26,7 +25,6 @@ export default observer(function () {
   useEffect(() => {
     const {app_host_ids, host_ids, extra} = store.record;
     setHostIds(lds.clone(host_ids || app_host_ids));
-    if (!hostStore.records || hostStore.records.length === 0) hostStore.fetchRecords();
     if (store.record.extra) setFileList([{...extra, uid: '0'}])
   }, [])
 
@@ -61,7 +59,7 @@ export default observer(function () {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('deploy_id', store.record.deploy_id);
-    http.post('/api/deploy/request/upload/', formData, {timeout: 120000})
+    http.post('/api/deploy/request/upload/', formData, {timeout: 300000})
       .then(res => {
         file.path = res;
         setFileList([file])

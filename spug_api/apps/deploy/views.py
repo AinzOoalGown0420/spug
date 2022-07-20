@@ -130,6 +130,10 @@ class RequestDetailView(View):
                         outputs[item['key']]['status'] = item['status']
             data = rds.lrange(key, counter, counter + 9)
         response['index'] = counter
+        if counter == 0:
+            for item in outputs:
+                outputs[item]['data'] += '\r\n\r\n未读取到数据，Spug 仅保存最近2周的日志信息。'
+
         if req.is_quick_deploy:
             if outputs['local']['data']:
                 outputs['local']['data'] = f'{human_time()} 读取数据...        ' + outputs['local']['data']
@@ -312,7 +316,8 @@ def post_request_ext2(request):
         if form.id:
             req = DeployRequest.objects.get(pk=form.id)
             is_required_notify = deploy.is_audit and req.status == '-1'
-            req.update_by_dict(created_by=request.user, reason=None, **form)
+            form.update(created_by=request.user, reason=None)
+            req.update_by_dict(form)
         else:
             req = DeployRequest.objects.create(created_by=request.user, **form)
             is_required_notify = deploy.is_audit

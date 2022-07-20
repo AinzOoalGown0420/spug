@@ -16,6 +16,7 @@ from libs.ssh import SSH, AuthenticationException
 from paramiko.ssh_exception import BadAuthenticationType
 from openpyxl import load_workbook
 from threading import Thread
+import socket
 import uuid
 from libs.sshforward import agentssh, _agent_sync_host_extend
 
@@ -95,6 +96,17 @@ class HostView(View):
             return json_response(response)
         return json_response(error=error)
 
+    @auth('host.host.add|host.host.edit')
+    def put(self, request):
+        form, error = JsonParser(
+            Argument('id', type=int, help='参数错误')
+        ).parse(request.body)
+        if error is None:
+            host = Host.objects.get(pk=form.id)
+            with host.get_ssh() as ssh:
+                _sync_host_extend(host, ssh=ssh)
+        return json_response(error=error)
+
     @auth('admin')
     def patch(self, request):
         form, error = JsonParser(
@@ -133,7 +145,7 @@ class HostView(View):
                     .annotate(app_name=F('app__name'), env_name=F('env__name')).first()
                 if deploy:
                     return json_response(error=f'应用【{deploy.app_name}】在【{deploy.env_name}】的发布配置关联了该主机，请解除关联后再尝试删除该主机')
-                task = Task.objects.filter(targets__regex=fr'[^0-9]{form.id}[^0-9]').first()
+                task = Task.objects.filter(targets__regex=regex).first()
                 if task:
                     return json_response(error=f'任务计划中的任务【{task.name}】关联了该主机，请解除关联后再尝试删除该主机')
                 detection = Detection.objects.filter(type__in=('3', '4'), targets__regex=regex).first()
@@ -208,3 +220,43 @@ def batch_valid(request):
         Thread(target=batch_sync_host, args=(token, hosts, form.password)).start()
         return json_response({'token': token, 'hosts': {x.id: {'name': x.name} for x in hosts}})
     return json_response(error=error)
+
+
+def _do_host_verify(form):
+    password = form.pop('password')
+    if form.pkey:
+        try:
+            with SSH(form.hostname, form.port, form.username, form.pkey) as ssh:
+                ssh.ping()
+            return True
+        except BadAuthenticationType:
+            raise Exception('该主机不支持密钥认证，请参考官方文档，错误代码：E01')
+        except AuthenticationException:
+            raise Exception('上传的独立密钥认证失败，请检查该密钥是否能正常连接主机（推荐使用全局密钥）')
+        except socket.timeout:
+            raise Exception('连接主机超时，请检查网络')
+
+    private_key, public_key = AppSetting.get_ssh_key()
+    if password:
+        try:
+            with SSH(form.hostname, form.port, form.username, password=password) as ssh:
+                ssh.add_public_key(public_key)
+        except BadAuthenticationType:
+            raise Exception('该主机不支持密钥认证，请参考官方文档，错误代码：E01')
+        except AuthenticationException:
+            raise Exception('密码连接认证失败，请检查密码是否正确')
+        except socket.timeout:
+            raise Exception('连接主机超时，请检查网络')
+
+    try:
+        with SSH(form.hostname, form.port, form.username, private_key) as ssh:
+            ssh.ping()
+    except BadAuthenticationType:
+        raise Exception('该主机不支持密钥认证，请参考官方文档，错误代码：E01')
+    except AuthenticationException:
+        if password:
+            raise Exception('密钥认证失败，请参考官方文档，错误代码：E02')
+        return False
+    except socket.timeout:
+        raise Exception('连接主机超时，请检查网络')
+    return True

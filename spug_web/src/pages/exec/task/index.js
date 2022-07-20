@@ -15,6 +15,7 @@ import Output from './Output';
 import { http, cleanCommand } from 'libs';
 import moment from 'moment';
 import store from './store';
+import gStore from 'gStore';
 import style from './index.module.less';
 
 function TaskIndex() {
@@ -28,7 +29,7 @@ function TaskIndex() {
 
   useEffect(() => {
     if (!loading) {
-      http.get('/api/exec/history/')
+      http.get('/api/exec/do/')
         .then(res => setHistories(res))
     }
   }, [loading])
@@ -40,6 +41,7 @@ function TaskIndex() {
   }, [command])
 
   useEffect(() => {
+    gStore.fetchUserSettings()
     return () => {
       store.host_ids = []
       if (store.showConsole) {
@@ -119,7 +121,7 @@ function TaskIndex() {
         <div className={style.right}>
           <div className={style.title}>
             执行记录
-            <Tooltip title="多次相同的执行记录将会合并展示，每天自动清理，保留最近50条记录。">
+            <Tooltip title="多次相同的执行记录将会合并展示，每天自动清理，保留最近30条记录。">
               <QuestionCircleOutlined style={{color: '#999', marginLeft: 8}}/>
             </Tooltip>
           </div>

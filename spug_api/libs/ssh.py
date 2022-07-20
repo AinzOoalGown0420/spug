@@ -3,35 +3,64 @@
 # Released under the AGPL-3.0 License.
 from paramiko.client import SSHClient, AutoAddPolicy
 from paramiko.rsakey import RSAKey
-from paramiko.transport import Transport
-from paramiko.ssh_exception import AuthenticationException
+from paramiko.auth_handler import AuthHandler
+from paramiko.ssh_exception import AuthenticationException, SSHException
+from paramiko.py3compat import b, u
 from io import StringIO
 from uuid import uuid4
 import time
 import re
 
-Transport._preferred_pubkeys = (
-    "ssh-ed25519",
-    "ecdsa-sha2-nistp256",
-    "ecdsa-sha2-nistp384",
-    "ecdsa-sha2-nistp521",
-    "ssh-rsa",
-    "rsa-sha2-256",
-    "rsa-sha2-512",
-    "ssh-dss",
-)
+
+def _finalize_pubkey_algorithm(self, key_type):
+    if "rsa" not in key_type:
+        return key_type
+    if re.search(r"-OpenSSH_(?:[1-6]|7\.[0-7])", self.transport.remote_version):
+        pubkey_algo = "ssh-rsa"
+        if key_type.endswith("-cert-v01@openssh.com"):
+            pubkey_algo += "-cert-v01@openssh.com"
+
+        self.transport._agreed_pubkey_algorithm = pubkey_algo
+        return pubkey_algo
+    my_algos = [x for x in self.transport.preferred_pubkeys if "rsa" in x]
+    if not my_algos:
+        raise SSHException(
+            "An RSA key was specified, but no RSA pubkey algorithms are configured!"  # noqa
+        )
+    server_algo_str = u(
+        self.transport.server_extensions.get("server-sig-algs", b(""))
+    )
+    if server_algo_str:
+        server_algos = server_algo_str.split(",")
+        agreement = list(filter(server_algos.__contains__, my_algos))
+        if agreement:
+            pubkey_algo = agreement[0]
+        else:
+            err = "Unable to agree on a pubkey algorithm for signing a {!r} key!"  # noqa
+            raise AuthenticationException(err.format(key_type))
+    else:
+        pubkey_algo = my_algos[0]
+        msg = "Server did not send a server-sig-algs list; defaulting to our first preferred algo ({!r})"  # noqa
+    if key_type.endswith("-cert-v01@openssh.com"):
+        pubkey_algo += "-cert-v01@openssh.com"
+    self.transport._agreed_pubkey_algorithm = pubkey_algo
+    return pubkey_algo
+
+
+AuthHandler._finalize_pubkey_algorithm = _finalize_pubkey_algorithm
 
 
 class SSH:
     def __init__(self, hostname, port=22, username='root', pkey=None, password=None, default_env=None,
-                 connect_timeout=10):
+                 connect_timeout=10, term=None):
         self.stdout = None
         self.client = None
         self.channel = None
         self.sftp = None
         self.exec_file = None
+        self.term = term or {}
         self.eof = 'Spug EOF 2108111926'
-        self.default_env = self._make_env_command(default_env)
+        self.default_env = default_env
         self.regex = re.compile(r'Spug EOF 2108111926 (-?\d+)[\r\n]?')
         self.arguments = {
             'hostname': hostname,
@@ -83,7 +112,7 @@ class SSH:
     def exec_command(self, command, environment=None):
         channel = self._get_channel()
         command = self._handle_command(command, environment)
-        channel.send(command)
+        channel.sendall(command)
         out, exit_code = '', -1
         for line in self.stdout:
             match = self.regex.search(line)
@@ -112,7 +141,7 @@ class SSH:
     def exec_command_with_stream(self, command, environment=None):
         channel = self._get_channel()
         command = self._handle_command(command, environment)
-        channel.send(command)
+        channel.sendall(command)
         exit_code, line = -1, ''
         while True:
             line = self._decode(channel.recv(8196))
@@ -126,9 +155,9 @@ class SSH:
             yield exit_code, line
         yield exit_code, line
 
-    def put_file(self, local_path, remote_path):
+    def put_file(self, local_path, remote_path, callback=None):
         sftp = self._get_sftp()
-        sftp.put(local_path, remote_path, confirm=False)
+        sftp.put(local_path, remote_path, callback=callback, confirm=False)
 
     def put_file_by_fl(self, fl, remote_path, callback=None):
         sftp = self._get_sftp()
@@ -151,16 +180,16 @@ class SSH:
             return self.channel
 
         counter = 0
-        self.channel = self.client.invoke_shell()
-        command = 'set +o history\nset +o zle\nset -o no_nomatch\nexport PS1= && stty -echo\n'
-        if self.default_env:
-            command += f'{self.default_env}\n'
-        command += f'echo {self.eof} $?\n'
-        self.channel.send(command.encode())
+        self.channel = self.client.invoke_shell(**self.term)
+        command = 'set +o zle\n[ -n "$BASH_VERSION" ] && set +o history\n[ -n "$ZSH_VERSION" ] && set -o no_nomatch\n'
+        command += 'export PS1= && stty -echo\n'
+        command = self._handle_command(command, self.default_env)
+        self.channel.sendall(command)
+        out = ''
         while True:
             if self.channel.recv_ready():
-                line = self._decode(self.channel.recv(8196))
-                if self.regex.search(line):
+                out += self._decode(self.channel.recv(8196))
+                if self.regex.search(out):
                     self.stdout = self.channel.makefile('r')
                     break
             elif counter >= 100:
