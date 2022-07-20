@@ -17,6 +17,7 @@ from paramiko.ssh_exception import BadAuthenticationType
 from openpyxl import load_workbook
 from threading import Thread
 import uuid
+from libs.sshforward import agentssh, _agent_sync_host_extend
 
 
 class HostView(View):
@@ -37,23 +38,37 @@ class HostView(View):
             Argument('name', help='请输主机名称'),
             Argument('username', handler=str.strip, help='请输入登录用户名'),
             Argument('hostname', handler=str.strip, help='请输入主机名或IP'),
+            Argument('agent_ip', required=False),
+            Argument('is_forward', type=int, help='是否转发'),
             Argument('port', type=int, help='请输入SSH端口'),
             Argument('pkey', required=False),
             Argument('desc', required=False),
             Argument('password', required=False),
+            Argument('db_user', required=False),
+            Argument('db_passwd', required=False),
         ).parse(request.body)
         if error is None:
             password = form.pop('password')
             private_key, public_key = AppSetting.get_ssh_key()
             try:
-                if form.pkey:
-                    private_key = form.pkey
-                elif password:
-                    with SSH(form.hostname, form.port, form.username, password=password) as ssh:
-                        ssh.add_public_key(public_key)
+                if form.is_forward==1:
+                    if form.pkey:
+                        private_key = form.pkey
+                    elif password:
+                        with agentssh(form.agent_ip,form.hostname, form.port, form.username, password=password) as ssh:
+                            ssh.add_public_key(public_key)
 
-                with SSH(form.hostname, form.port, form.username, private_key) as ssh:
-                    ssh.ping()
+                    with agentssh(form.agent_ip,form.hostname, form.port, form.username, private_key) as ssh:
+                        ssh.ping()
+                else:
+                    if form.pkey:
+                        private_key = form.pkey
+                    elif password:
+                        with SSH(form.hostname, form.port, form.username, password=password) as ssh:
+                            ssh.add_public_key(public_key)
+
+                    with SSH(form.hostname, form.port, form.username, private_key) as ssh:
+                        ssh.ping()
             except BadAuthenticationType:
                 return json_response(error='该主机不支持密钥认证，请参考官方文档，错误代码：E01')
             except AuthenticationException:
@@ -70,7 +85,10 @@ class HostView(View):
                 host = Host.objects.get(pk=form.id)
             else:
                 host = Host.objects.create(created_by=request.user, is_verified=True, **form)
-                _sync_host_extend(host, ssh=ssh)
+                if form.is_forward == 1:
+                    _agent_sync_host_extend(host, ssh=ssh)
+                else:
+                    _sync_host_extend(host, ssh=ssh)
             host.groups.set(group_ids)
             response = host.to_view()
             response['group_ids'] = group_ids

@@ -124,6 +124,11 @@ function ComTable() {
           <span>{info.cpu}核 {info.memory}GB</span>
         </Space>
       )}/>
+      <Table.Column title="是否隧道转发" render={info => (
+        <div>
+          {info.is_forward}
+        </div>
+      )}/>
       <Table.Column hide title="备注信息" dataIndex="desc"/>
       <Table.Column
         title="状态"

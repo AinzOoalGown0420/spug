@@ -124,6 +124,20 @@ export default observer(function () {
             <Input addonBefore="-p" placeholder="端口"/>
           </Form.Item>
         </Form.Item>
+        <Form.Item required name="name" label="是否隧道转发"  layout="inline">
+        <Form.Item name="is_forward" className={styles.formAddress1} style={{width: 'calc(30%)'}}>
+          <Input placeholder="请输入0或1"/> 
+        </Form.Item>
+        <Form.Item name="agent_ip" label="代理IP" style={{width: 'calc(50%)'}}>
+          <Input placeholder="代理IP地址"/>
+        </Form.Item>
+        </Form.Item>
+        <Form.Item name="db_user" label="数据库用户">
+          <Input placeholder="仅在数据库服务器上需要"/>
+        </Form.Item>
+        <Form.Item name="db_passwd" label="数据库密码">
+          <Input placeholder="仅在数据库服务器上需要"/>
+        </Form.Item>
         <Form.Item label="独立密钥" extra="默认使用全局密钥，如果上传了独立密钥（私钥）则优先使用该密钥。">
           <Upload name="file" fileList={fileList} headers={{'X-Token': X_TOKEN}} beforeUpload={handleUpload}
                   onChange={handleUploadChange}>

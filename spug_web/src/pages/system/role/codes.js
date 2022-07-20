@@ -177,4 +177,15 @@ export default [{
       {key: 'del', label: '删除联系组'},
     ]
   }]
+},{key: 'project',
+label: '项目',
+pages: [{
+  key: 'projectM',
+  label: '项目管理',
+  perms: [
+    {key: 'view', label: '查看项目'},
+    {key: 'add', label: '新建项目'},
+    {key: 'edit', label: '编辑项目'},
+    {key: 'del', label: '删除项目'},
+]}]
 }]

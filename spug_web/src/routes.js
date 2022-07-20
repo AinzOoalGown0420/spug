@@ -20,6 +20,7 @@ import {
 import HomeIndex from './pages/home';
 import DashboardIndex from './pages/dashboard';
 import HostIndex from './pages/host';
+import ProjectIndex from './pages/projectM';
 import ExecTask from './pages/exec/task';
 import ExecTemplate from './pages/exec/template';
 import DeployApp from './pages/deploy/app';
@@ -50,6 +51,7 @@ export default [
     component: DashboardIndex
   },
   {icon: <CloudServerOutlined/>, title: '主机管理', auth: 'host.host.view', path: '/host', component: HostIndex},
+  {icon: <CloudServerOutlined/>, title: '项目管理', path: '/projectM', component: ProjectIndex},
   {
     icon: <CodeOutlined/>, title: '批量执行', auth: 'exec.task.do|exec.template.view', child: [
       {title: '执行任务', auth: 'exec.task.do', path: '/exec/task', component: ExecTask},

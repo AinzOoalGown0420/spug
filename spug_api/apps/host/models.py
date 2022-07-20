@@ -17,6 +17,10 @@ class Host(models.Model, ModelMixin):
     pkey = models.TextField(null=True)
     desc = models.CharField(max_length=255, null=True)
     is_verified = models.BooleanField(default=False)
+    is_forward = models.IntegerField(default=0)
+    agent_ip = models.CharField(max_length=255)
+    db_user = models.CharField(max_length=50)
+    db_passwd = models.CharField(max_length=255)
     created_at = models.CharField(max_length=20, default=human_datetime)
     created_by = models.ForeignKey(User, models.PROTECT, related_name='+')
 
