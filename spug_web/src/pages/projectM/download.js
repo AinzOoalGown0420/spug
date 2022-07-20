@@ -64,7 +64,7 @@ export default observer(function () {
             <Panel header="后台日志" key="2">
                 <List className="demo-loadmore-list" loading={store.listloading} itemLayout="horizontal" 
                 dataSource={store.filelist.backend} renderItem={(item) => (
-                <List.Item actions={[<a key="list-loadmore-edit">下载</a>]}>
+                <List.Item actions={[<a key="list-loadmore-edit"  onClick={()=>handledown(item,'/app/backend/runtime/logs/')} >下载</a>]}>
                 <Skeleton avatar title={false} loading={item.loading} active>
                 <List.Item.Meta description={item}/>
                 </Skeleton>
@@ -75,7 +75,7 @@ export default observer(function () {
             <Panel header="队列日志" key="3">
                 <List className="demo-loadmore-list" loading={store.listloading} itemLayout="horizontal" 
                 dataSource={store.filelist.console} renderItem={(item) => (
-                <List.Item actions={[<a key="list-loadmore-edit">下载</a>]}>
+                <List.Item actions={[<a key="list-loadmore-edit"  onClick={()=>handledown(item,'/app/console/runtime/logs/')} >下载</a>]}>
                 <Skeleton avatar title={false} loading={item.loading} active>
                 <List.Item.Meta description={item}/>
                 </Skeleton>
