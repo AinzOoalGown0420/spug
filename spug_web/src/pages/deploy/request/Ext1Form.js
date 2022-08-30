@@ -8,7 +8,7 @@ import { observer } from 'mobx-react';
 import { Modal, Form, Input, Select, DatePicker, Button, message } from 'antd';
 import { LoadingOutlined, SyncOutlined } from '@ant-design/icons';
 import HostSelector from './HostSelector';
-import { http, history } from 'libs';
+import { http, history, includes } from 'libs';
 import store from './store';
 import lds from 'lodash';
 import moment from 'moment';
@@ -50,7 +50,7 @@ export default observer(function () {
   function fetchVersions() {
     setFetching(true);
     const deploy_id = store.record.deploy_id
-    const p1 = http.get(`/api/app/deploy/${deploy_id}/versions/`, {timeout: 120000})
+    const p1 = http.get(`/api/app/deploy/${deploy_id}/versions/`, {timeout: 300000})
     const p2 = http.get('/api/repository/', {params: {deploy_id}})
     Promise.all([p1, p2])
       .then(([res1, res2]) => {
@@ -170,12 +170,14 @@ export default observer(function () {
                 placeholder="请稍等"
                 onChange={switchExtra1}
                 notFoundContent={git_type === 'repository' ? <NoVersions/> : undefined}
-                filterOption={(input, option) => option.props.children.toLowerCase().indexOf(input.toLowerCase()) >= 0}>
+                filterOption={(input, option) => includes(option.content, input)}>
                 {git_type === 'branch' ? (
-                  Object.keys(branches || {}).map(b => <Select.Option key={b} value={b}>{b}</Select.Option>)
+                  Object.keys(branches || {}).map(b => (
+                    <Select.Option key={b} value={b} content={b}>{b}</Select.Option>
+                  ))
                 ) : git_type === 'tag' ? (
                   Object.entries(tags || {}).map(([tag, info]) => (
-                    <Select.Option key={tag} value={tag}>
+                    <Select.Option key={tag} value={tag} content={`${tag} ${info.author} ${info.message}`}>
                       <div style={{display: 'flex', justifyContent: 'space-between'}}>
                         <span style={{
                           width: 200,
@@ -188,7 +190,8 @@ export default observer(function () {
                   ))
                 ) : (
                   repositories.map(item => (
-                    <Select.Option key={item.id} value={item.id} disabled={type === '2' && item.id >= rb_id}>
+                    <Select.Option key={item.id} value={item.id} content={item.version}
+                                   disabled={type === '2' && item.id >= rb_id}>
                       <div style={{display: 'flex', justifyContent: 'space-between'}}>
                         <span>{item.version}</span>
                         <span style={{color: '#999', fontSize: 12}}>构建于 {moment(item.created_at).fromNow()}</span>

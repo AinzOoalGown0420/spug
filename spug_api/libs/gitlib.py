@@ -44,11 +44,14 @@ class Git:
         return branches, dict(tags)
 
     def fetch(self):
+        kwargs = dict(f=True, p=True)
+        if self.repo.git.version_info >= (2, 17, 0):
+            kwargs.update(P=True)
         try:
-            self.repo.remotes.origin.fetch(f=True, p=True, P=True)
+            self.repo.remotes.origin.fetch(**kwargs)
         except GitCommandError as e:
             if self.env:
-                self.repo.remotes.origin.fetch(env=self.env, f=True, p=True, P=True)
+                self.repo.remotes.origin.fetch(env=self.env, **kwargs)
             else:
                 raise e
 
@@ -94,7 +97,7 @@ class Git:
             self.fd = NamedTemporaryFile()
             self.fd.write(self.pkey.encode())
             self.fd.flush()
-            self.env = {'GIT_SSH_COMMAND': f'ssh -i {self.fd.name}'}
+            self.env = {'GIT_SSH_COMMAND': f'ssh -o StrictHostKeyChecking=no -i {self.fd.name}'}
         self.repo = self._get_repo()
         return self
 
